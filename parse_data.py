@@ -47,29 +47,44 @@ def get_result(game):
         return 0
 
 games = open('data/games.pgn')
+game = chess.pgn.read_game(games)
 bitboards = []
 labels = []
 num_games = 0
 
-for i in range(845910):
-    if num_games % 10 == 0:
-        print(num_games)
-        print(len(bitboards))
+while game is not None:
+    if num_games > 0 and num_games % 1000 == 0:
+        print('# Games: %d' % num_games)
+        print('# Moves: %d' % len(bitboards))
+        print('Avg. Moves / Game: %.1f' % (len(bitboards) / num_games))
+        print('=======================')
 
     num_games += 1
-
-    game = chess.pgn.read_game(games)
 
     result = get_result(game)
 
     board = game.board()
 
-    for move in game.main_line():
+    for move in game.mainline_moves():
         board.push(move)
         bitboard = get_bitboard(board)
 
         bitboards.append(bitboard)
         labels.append(result)
 
+    bitboards.append(bitboard)
+    labels.append(result)
+
+    game = chess.pgn.read_game(games)
+
 bitboards = np.array(bitboards)
 labels = np.array(labels)
+
+print('bitboards shape:', bitboards.shape)
+print('labels shape:', labels.shape)
+print('Finished processing, saving...')
+
+np.save('./data/bitboards.npy', bitboards)
+np.save('./data/labels.npy', labels)
+
+print('Done!')

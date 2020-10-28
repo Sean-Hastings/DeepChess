@@ -17,6 +17,8 @@ from models.autoencoder import AE
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
 parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                     help='input batch size for training (default: 128)')
+parser.add_argument('--dropout', type=float, default=0.0, metavar='N',
+                    help='dropout for each AE layer during training')
 parser.add_argument('--lr', type=float, default=5e-3, metavar='N',
                     help='learning rate (default: 5e-3)')
 parser.add_argument('--decay', type=float, default=.95, metavar='N',
@@ -27,7 +29,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
                     help='how many batches to wait before logging training status')
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -40,15 +42,21 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 lr = args.lr
 decay = args.decay
-batch_size=args.batch_size
+batch_size = args.batch_size
 
-writer = SummaryWriter(comment='lr: {} | decay: {} | batch size: {}'.format(lr, decay, batch_size))
+writer = SummaryWriter()#comment='lr: {} | decay: {} | batch size: {}'.format(lr, decay, batch_size))
+print('Loading and processing data...')
 
 games = np.load('data/bitboards.npy')
 
+# TODO: explain this mess
+test_percent = 0.1
+num_test = int(len(games)*test_percent)
+test_games = games[:num_test//2]
+games = games[num_test//2:]
 np.random.shuffle(games)
-train_games = games[:int(len(games)*.8)]
-test_games = games[int(len(games)*.8):]
+train_games = games[num_test//2:]
+test_games  = np.concatenate([test_games, games[:num_test//2]])
 
 class TrainSet(Dataset):
     def __init__(self):
@@ -71,18 +79,17 @@ class TestSet(Dataset):
         return test_games.shape[0]
 
 train_loader = torch.utils.data.DataLoader(TrainSet(), batch_size=batch_size, shuffle=True)
-test_loader = torch.utils.data.DataLoader(TestSet(), batch_size=batch_size, shuffle=True)
+test_loader = torch.utils.data.DataLoader(TestSet(), batch_size=batch_size)
 
-model = AE().to(device)
+model = AE(args.dropout).to(device)
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
-
 def loss_function(recon_x, x):
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 773), size_average=False)
+    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 773), reduction='sum')
     return BCE
 
 def mse_loss_function(recon_x, x):
-    MSE = F.mse_loss(recon_x, x.view(-1, 773), size_average=False)
+    MSE = F.mse_loss(recon_x, x.view(-1, 773), reduction='sum')
     return MSE
 
 def train(epoch):
@@ -96,15 +103,17 @@ def train(epoch):
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
+        ib = batch_idx + 1
+        if ib % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader),
+                epoch, ib * len(data), len(train_loader.dataset),
+                100. * ib / len(train_loader),
                 loss.item() / len(data)))
             writer.add_scalar('data/train_loss', loss.item() / len(data), epoch*len(train_loader) + batch_idx)
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
+    return train_loss / len(train_loader.dataset)
 
 
 def test(epoch):
@@ -131,14 +140,18 @@ def test(epoch):
     writer.add_scalar('data/test_loss_mse', test_loss_mse, epoch)
     writer.add_scalar('data/test_diff', total_diff, epoch)
 
-def save(epoch):
+    return test_loss
+
+def save(epoch, best=False):
     state = {'state_dict': model.state_dict(),
              'optimizer': optimizer.state_dict(),
              'epoch': epoch + 1}
     save_dir = 'checkpoints/autoencoder/lr_{}_decay_{}'.format(int(lr*1000), int(decay*100))
     if not os.path.isdir(save_dir):
-        os.mkdir(save_dir)
+        os.makedirs(save_dir)
     torch.save(state, os.path.join(save_dir, 'ae_{}.pth.tar'.format(epoch)))
+    if best:
+        torch.save(state, os.path.join(save_dir, 'ae_best.pth.tar'))
 
 def recon(game):
     recon, _ = model(torch.from_numpy(game).type(torch.FloatTensor))
@@ -146,18 +159,21 @@ def recon(game):
     return recon
 
 start_epoch = 1
-resume = True
+resume = False
 if resume:
-    state = torch.load('./checkpoints/best_autoencoder.pth.tar', 
+    state = torch.load('./checkpoints/best_autoencoder.pth.tar',
                         map_location=lambda storage, loc: storage)
     model.load_state_dict(state['state_dict'])
     optimizer.load_state_dict(state['optimizer'])
     start_epoch = state['epoch']
 
+print('Data ready, beginning training:')
+best_loss = float('inf')
 for epoch in range(start_epoch, args.epochs + 1):
     train(epoch)
-    test(epoch)
-    save(epoch)
+    tl = test(epoch)
+    save(epoch, tl < best_loss)
+    best_loss = min(best_loss, tl)
 
     # Adjust learning rate
     for params in optimizer.param_groups:

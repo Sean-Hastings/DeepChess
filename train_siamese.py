@@ -184,11 +184,11 @@ def save(epoch):
              'epoch': epoch + 1}
     save_dir = 'checkpoints/siamese/lr_{}_decay_{}'.format(int(lr*1000), int(decay*100))
     if not os.path.isdir(save_dir):
-        os.mkdir(save_dir)
+        os.makedirs(save_dir)
     torch.save(state, os.path.join(save_dir, 'ae_{}.pth.tar'.format(epoch)))
 
 start_epoch = 1
-resume = True
+resume = False
 if resume:
     state = torch.load('./checkpoints/best_siamese.pth.tar', map_location=lambda storage, loc: storage)
     model.load_state_dict(state['state_dict'])
@@ -204,4 +204,3 @@ for epoch in range(start_epoch, args.epochs + 1):
     # Adjust learning rate
     for param_group in optimizer.param_groups:
         param_group['lr'] = param_group['lr'] * decay
-
