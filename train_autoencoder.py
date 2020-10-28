@@ -18,19 +18,21 @@ parser = argparse.ArgumentParser(description='VAE MNIST Example')
 parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                     help='input batch size for training (default: 128)')
 parser.add_argument('--dropout', type=float, default=0.0, metavar='N',
-                    help='dropout for each AE layer during training')
+                    help='dropout for each AE layer during training (default: 0.0)')
 parser.add_argument('--lr', type=float, default=5e-3, metavar='N',
                     help='learning rate (default: 5e-3)')
 parser.add_argument('--decay', type=float, default=.95, metavar='N',
-                    help='decay rate of learning rate (default: .95)')
+                    help='decay rate of learning rate (default: 0.95)')
 parser.add_argument('--epochs', type=int, default=10, metavar='N',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
-                    help='how many batches to wait before logging training status')
+parser.add_argument('--id', type=str, default='', metavar='N',
+                    help='unique identifier for saving weights')
+parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+                    help='how many batches to wait before logging training status (default: 10)')
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -39,6 +41,9 @@ torch.manual_seed(args.seed)
 device = torch.device("cuda" if args.cuda else "cpu")
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
+
+if len(args.id) > 0:
+    args.id = '_' + args.id
 
 lr = args.lr
 decay = args.decay
@@ -77,12 +82,6 @@ class TestSet(Dataset):
 
     def __len__(self):
         return test_games.shape[0]
-
-train_loader = torch.utils.data.DataLoader(TrainSet(), batch_size=batch_size, shuffle=True)
-test_loader = torch.utils.data.DataLoader(TestSet(), batch_size=batch_size)
-
-model = AE(args.dropout).to(device)
-optimizer = optim.Adam(model.parameters(), lr=lr)
 
 def loss_function(recon_x, x):
     BCE = F.binary_cross_entropy(recon_x, x.view(-1, 773), reduction='sum')
@@ -146,7 +145,7 @@ def save(epoch, best=False):
     state = {'state_dict': model.state_dict(),
              'optimizer': optimizer.state_dict(),
              'epoch': epoch + 1}
-    save_dir = 'checkpoints/autoencoder/lr_{}_decay_{}'.format(int(lr*1000), int(decay*100))
+    save_dir = 'checkpoints/autoencoder/lr_{}_decay_{}{}'.format(int(lr*1000), int(decay*100), args.id)
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     torch.save(state, os.path.join(save_dir, 'ae_{}.pth.tar'.format(epoch)))
@@ -158,16 +157,27 @@ def recon(game):
     recon = (recon.cpu().detach().numpy() > .5).astype(int)
     return recon
 
+
+train_loader = torch.utils.data.DataLoader(TrainSet(), batch_size=batch_size, shuffle=True)
+test_loader = torch.utils.data.DataLoader(TestSet(), batch_size=batch_size)
+
+model = AE(args.dropout).to(device)
+optimizer = optim.Adam(model.parameters(), lr=lr)
+
 start_epoch = 1
-resume = False
-if resume:
-    state = torch.load('./checkpoints/best_autoencoder.pth.tar',
+try:
+    load_dir = 'checkpoints/autoencoder/lr_{}_decay_{}{}'.format(int(lr*1000), int(decay*100), args.id)
+    load_path = load_dir + '/ae_best.pth.tar'
+    state = torch.load(load_path,
                         map_location=lambda storage, loc: storage)
     model.load_state_dict(state['state_dict'])
     optimizer.load_state_dict(state['optimizer'])
     start_epoch = state['epoch']
+except Exception:
+    pass
 
 print('Data ready, beginning training:')
+
 best_loss = float('inf')
 for epoch in range(start_epoch, args.epochs + 1):
     train(epoch)
