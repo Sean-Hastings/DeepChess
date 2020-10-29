@@ -6,22 +6,23 @@ from models.siamese import Siamese
 from train import train
 
 
-def loss_function(recon_x, x):
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 773), reduction='sum')
+def loss_function(predictions, labels):
+    BCE = F.binary_cross_entropy(predictions, labels, reduction='sum')
     return BCE
 
 
 def get_acc(predictions, labels):
-    correct = np.sum((pred > .5).cpu().detach().numpy() * labels.numpy())
+    correct = ((predictions > .5) * labels).sum()
     return correct
 
 
 if __name__ == '__main__':
-    print('Loading and processing data...')
+    print('Loading data...')
     games = np.load('./data/features.npy')
     wins  = np.load('./data/labels.npy')
-    games = games[wins != 0]
-    wins  = wins[wins != 0]
+    games = games[wins != 0][:20000]
+    wins  = wins[wins != 0][:20000]
+    print('processing data...')
 
     # TODO: explain this mess
     test_percent = 0.1

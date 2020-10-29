@@ -33,7 +33,7 @@ def train_epoch(epoch, model, optimizer, loss_function, data_loader, writer, dev
                 epoch, ib * len(data), len(data_loader.dataset),
                 100. * ib / len(data_loader),
                 loss.item() / len(data)))
-            writer.add_scalar('data/train_loss', loss.item() / len(data), epoch*len(data_loader.dataset) + batch_idx * args.batch_size)
+            writer.add_scalar('data/train_loss', loss.item() / len(data), (epoch-1)*len(data_loader.dataset) + ib * args.batch_size)
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(data_loader.dataset)))
@@ -63,7 +63,7 @@ def test(epoch, model, loss_function, data_loader, writer, device, args, test_fu
     for key in list(test_metrics.keys()):
         metric = test_metrics[key] / len(data_loader.dataset)
         print('====> Test set {}: {:.4f}'.format(key, metric))
-        writer.add_scalar('data/test_{}'.format(key), metric)
+        writer.add_scalar('data/test_{}'.format(key), metric, epoch)
 
     return test_loss
 
@@ -113,8 +113,9 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
 
     writer = SummaryWriter(comment='_' + args.id)
 
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
-    test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True)
+    kwargs = {'num_workers': 4, 'pin_memory': True} if args.cuda else {}
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
+    test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, **kwargs)
 
     model = model(args.dropout).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)

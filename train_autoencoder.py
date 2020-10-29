@@ -21,11 +21,14 @@ def diff(predictions, labels):
 
 
 if __name__ == '__main__':
-    print('Loading and processing data...')
+    print('Loading data...')
     games  = np.load('data/bitboards.npy')
     labels = np.load('data/labels.npy')
+    print('Pruning data...')
     games = games[labels != 0]
     del labels
+    print('Processing data...')
+
 
     # TODO: explain this mess
     test_percent = 0.1
