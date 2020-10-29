@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+from time import time
 import os
 import torch
 import torch.utils.data
@@ -15,7 +16,7 @@ from tensorboardX import SummaryWriter
 from models.autoencoder import AE
 
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
-parser.add_argument('--batch-size', type=int, default=128, metavar='N',
+parser.add_argument('--batch-size', type=int, default=2048, metavar='N',
                     help='input batch size for training (default: 128)')
 parser.add_argument('--dropout', type=float, default=0.0, metavar='N',
                     help='dropout for each AE layer during training (default: 0.0)')
@@ -31,8 +32,8 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--id', type=str, default='', metavar='N',
                     help='unique identifier for saving weights')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                    help='how many batches to wait before logging training status (default: 10)')
+parser.add_argument('--log-interval', type=int, default=20, metavar='N',
+                    help='how many seconds to wait before logging training status (default: 20)')
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -94,6 +95,7 @@ def mse_loss_function(recon_x, x):
 def train(epoch):
     model.train()
     train_loss = 0
+    logtime = time()
     for batch_idx, (data, _) in enumerate(train_loader):
         data = data.to(device)
         optimizer.zero_grad()
@@ -102,13 +104,14 @@ def train(epoch):
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
-        ib = batch_idx + 1
-        if ib % args.log_interval == 0:
+        if (time() - logtime) > args.log_interval:
+            logtime = time()
+            ib = batch_idx + 1
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, ib * len(data), len(train_loader.dataset),
                 100. * ib / len(train_loader),
                 loss.item() / len(data)))
-            writer.add_scalar('data/train_loss', loss.item() / len(data), epoch*len(train_loader) + batch_idx)
+            writer.add_scalar('data/train_loss', loss.item() / len(data), epoch*len(train_loader.dataset) + batch_idx * batch_size)
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
