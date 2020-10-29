@@ -1,12 +1,6 @@
-from __future__ import print_function
-import argparse
 import torch
-import torch.utils.data
-from torch import nn, optim
+from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import Dataset
-from torchvision import datasets, transforms
-from torchvision.utils import save_image
 
 def redrop(x, dropout):
     return dropout(x)#+1)-1
@@ -49,3 +43,6 @@ class AE(nn.Module):
     def forward(self, x):
         enc = self.encode(x.view(-1, 773))
         return self.decode(enc), enc
+
+    def name(self):
+        return 'autoencoder'

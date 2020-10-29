@@ -7,12 +7,14 @@ state = torch.load('checkpoints/best_autoencoder.pth.tar', map_location=lambda s
 model.load_state_dict(state['state_dict'])
 games = np.load('data/bitboards.npy')
 
-# 1499856 samples...
-# got lucky, 48 divides number of samples evenly
-batched_games = np.split(games, 17) 
+batch_size  = 50
+num_batches = games.shape[0] // batch_size
+extras      = games[batch_size*num_batches:]
+
+batched_games = np.split(games[:batch_size*num_batches], batch_size) + [extras]
 
 def featurize(game):
-    recon, enc = model(torch.from_numpy(game).type(torch.FloatTensor))
+    _, enc = model(torch.from_numpy(game).type(torch.FloatTensor))
     return enc.detach().numpy()
 
 feat_games = [featurize(batch) for batch in batched_games]

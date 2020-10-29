@@ -52,6 +52,9 @@ bitboards = []
 labels = []
 num_games = 0
 
+placeholder_board = np.zeros(773)
+placeholder_label = 0
+
 while game is not None:
     if num_games > 0 and num_games % 1000 == 0:
         print('# Games: %d' % num_games)
@@ -72,8 +75,8 @@ while game is not None:
         bitboards.append(bitboard)
         labels.append(result)
 
-    bitboards.append(bitboard)
-    labels.append(result)
+    bitboards.append(placeholder_board)
+    labels.append(placeholder_label)
 
     game = chess.pgn.read_game(games)
 
