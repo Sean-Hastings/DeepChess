@@ -68,12 +68,14 @@ while game is not None:
 
     board = game.board()
 
+    i = 0
     for move in game.mainline_moves():
         board.push(move)
         bitboard = get_bitboard(board)
-
-        bitboards.append(bitboard)
-        labels.append(result)
+        if i > 50:
+            bitboards.append(bitboard)
+            labels.append(result)
+        i += 1
 
     bitboards.append(placeholder_board)
     labels.append(placeholder_label)

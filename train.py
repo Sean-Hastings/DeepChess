@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 def train_epoch(epoch, model, optimizer, loss_function, data_loader, writer, device, args):
     model.train()
     train_loss = 0
-    logtime = time()
+    logtime = time() - args.log_interval
     for batch_idx, (data, labels) in enumerate(data_loader):
         data   = data.to(device)
         labels = labels.to(device)
@@ -113,7 +113,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
 
     writer = SummaryWriter(comment='_' + args.id)
 
-    kwargs = {'num_workers': 4, 'pin_memory': True} if args.cuda else {}
+    kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {}
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, **kwargs)
 

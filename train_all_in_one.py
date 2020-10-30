@@ -2,7 +2,7 @@ import numpy as np
 from torch.nn import functional as F
 
 from utils import SiameseSet
-from models.siamese import Siamese
+from models.siamese import SplitSiamese
 from train import train
 
 
@@ -18,29 +18,29 @@ def get_acc(predictions, labels):
 
 if __name__ == '__main__':
     print('Loading data...')
-    games = np.load('./data/features.npy')
-    wins  = np.load('./data/labels.npy')
+    games = np.load('data/bitboards.npy')
+    wins  = np.load('data/labels.npy')
     games = games[wins != 0]
     wins  = wins[wins != 0]
     print('processing data...')
 
     # TODO: explain this mess
-    test_percent = 0.1
+    test_percent = 0.01
     num_test     = int(len(games)*test_percent)
     test_games   = games[:num_test]
     test_wins    = wins[:num_test]
     train_games  = games[num_test:]
     train_wins   = wins[num_test:]
 
-    train_games_wins = train_games[train_wins == 1]
+    train_games_wins   = train_games[train_wins == 1]
     train_games_losses = train_games[train_wins == -1]
-    test_games_wins = test_games[test_wins == 1]
-    test_games_losses = test_games[test_wins == -1]
-    
-    train_set = SiameseSet(train_games_losses, train_games_wins, 1000000)
-    test_set  = SiameseSet(test_games_losses, test_games_wins, 10000)
+    test_games_wins    = test_games[test_wins == 1]
+    test_games_losses  = test_games[test_wins == -1]
 
-    model = Siamese
+    train_set = SiameseSet(train_games_losses, train_games_wins, 1000000)
+    test_set  = SiameseSet(test_games_losses, test_games_wins, 50000)
+
+    model = SplitSiamese
 
     test_functions = {'accuracy': get_acc}
 

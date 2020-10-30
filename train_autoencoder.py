@@ -33,11 +33,8 @@ if __name__ == '__main__':
     # TODO: explain this mess
     test_percent = 0.1
     num_test = int(len(games)*test_percent)
-    test_games = games[:num_test//2]
-    games = games[num_test//2:]
-    np.random.shuffle(games)
-    train_games = games[num_test//2:]
-    test_games  = np.concatenate([test_games, games[:num_test//2]])
+    test_games = games[:num_test]
+    games = games[num_test:]
     train_set = AESet(train_games)
     test_set  = AESet(test_games)
 

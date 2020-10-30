@@ -19,13 +19,16 @@ class SiameseSet(Dataset):
     '''
     The labels will indicate which sample is from set B
     '''
-    def __init__(self, set_a, set_b):
+    def __init__(self, set_a, set_b, epoch_length):
         self.set_a  = set_a
         self.set_b  = set_b
+        self.length = epoch_length
 
     def __getitem__(self, index):
-        i_a = index % self.set_a.shape[0]
-        i_b = index // self.set_a.shape[0]
+        #i_a = index % self.set_a.shape[0]
+        #i_b = index // self.set_a.shape[0]
+        i_a = np.random.randint(0, len(self.set_a))
+        i_b = np.random.randint(0, len(self.set_b))
 
         sample_a = self.set_a[i_a]
         sample_b = self.set_b[i_b]
@@ -41,4 +44,5 @@ class SiameseSet(Dataset):
         return (stacked, label)
 
     def __len__(self):
-        return self.set_a.shape[0] * self.set_b.shape[0]
+        #return self.set_a.shape[0] * self.set_b.shape[0]
+        return self.length
