@@ -16,6 +16,7 @@ def mse_loss_function(predictions, labels):
     MSE = F.mse_loss(predictions[0], labels, reduction='sum')
     return MSE
 
+
 def diff(predictions, labels):
     diff = (predictions[0] - labels).abs().sum()
     return diff
