@@ -17,10 +17,15 @@ def get_acc(predictions, labels):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Training a siamese model')
+    parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
+                        help='name of the dataset to parse (default: ccrl)')
+    args, _ = parser.parse_known_args()
+
     print('Loading data...')
-    games = np.load('data/ccrl_byteboards.npy')
+    games = np.load('data/{}_byteboards.npy'.format(args.dataset))
     wins  = (games[:, -1] << 6) >> 6
-    games = np.load('./data/ccrl_features.npy')
+    games = np.load('./data/{}_features.npy'.format(args.dataset))
     games = games[wins != 0]
     wins  = wins[wins != 0]
     print('processing data...')

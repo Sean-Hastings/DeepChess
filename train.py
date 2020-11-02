@@ -101,7 +101,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
                         help='unique identifier for saving weights')
     parser.add_argument('--log-interval', type=int, default=20, metavar='N',
                         help='how many seconds to wait before logging training status (default: 20)')
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
     torch.manual_seed(args.seed)
