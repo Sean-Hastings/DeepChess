@@ -8,7 +8,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = AE().to(device)
 state = torch.load('checkpoints/best_autoencoder.pth.tar', map_location=lambda storage, loc: storage)
 model.load_state_dict(state['state_dict'])
-games = np.load('data/bitboards.npy')
+games = np.load('data/byteboards.npy')
 
 batch_size  = 4096
 num_batches = games.shape[0] // batch_size

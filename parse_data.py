@@ -1,95 +1,104 @@
 import numpy as np
 import chess.pgn
+import argparse
+from time import time
+import ray
+ray.init()
 
-def get_bitboard(board):
-    '''
-    params
-    ------
 
-    board : chess.pgn board object
-        board to get state from
-
-    returns
-    -------
-
-    bitboard representation of the state of the game
-    64 * 6 + 5 dim binary numpy vector
-    64 squares, 6 pieces, '1' indicates the piece is at a square
-    5 extra dimensions for castling rights queenside/kingside and whose turn
-
-    '''
-
-    bitboard = np.zeros(64*6*2+5)
+def get_byteboard(board, result):
+    byteboard = np.zeros(32 + 1).astype(np.uint8)
 
     piece_idx = {'p': 0, 'n': 1, 'b': 2, 'r': 3, 'q': 4, 'k': 5}
 
     for i in range(64):
+        i_board = i // 2
+        i_hbyte = i % 2
         if board.piece_at(i):
-            color = int(board.piece_at(i).color) + 1
-            bitboard[(piece_idx[board.piece_at(i).symbol().lower()] + i * 6) * color] = 1
+            offset = i_hbyte * 4
+            color = int(board.piece_at(i).color)
+            value = piece_idx[board.piece_at(i).symbol().lower()] + 6 * color + 1
+            byteboard[i_board] += value << offset
 
-    bitboard[-1] = int(board.turn)
-    bitboard[-2] = int(board.has_kingside_castling_rights(True))
-    bitboard[-3] = int(board.has_kingside_castling_rights(False))
-    bitboard[-4] = int(board.has_queenside_castling_rights(True))
-    bitboard[-5] = int(board.has_queenside_castling_rights(False))
+    extras = [board.turn,
+              board.has_kingside_castling_rights(True),
+              board.has_kingside_castling_rights(False),
+              board.has_queenside_castling_rights(True),
+              board.has_queenside_castling_rights(False)]
+    byteboard[-1] = np.sum([int(x) << (i+2) for i, x in enumerate(extras)]+[result])
 
-    return bitboard
+    return byteboard
+
 
 def get_result(game):
     result = game.headers['Result']
-    result = result.split('-')
-    if result[0] == '1':
+    result = result.split('-')[0]
+    if result == '1':
+        return 2
+    elif result == '0':
         return 1
-    elif result[0] == '0':
-        return -1
     else:
         return 0
 
-games = open('data/games.pgn')
-game = chess.pgn.read_game(games)
-bitboards = []
-labels = []
-num_games = 0
 
-placeholder_board = np.zeros(773)
-placeholder_label = 0
+@ray.remote
+def process_game(game):
+    placeholder_board = np.zeros(33).astype(np.uint8)
+    placeholder_label = 0
 
-while game is not None:
-    if num_games > 0 and num_games % 1000 == 0:
-        print('# Games: %d' % num_games)
-        print('# Moves: %d' % len(bitboards))
-        print('Avg. Moves / Game: %.1f' % (len(bitboards) / num_games))
-        print('=======================')
-
-    num_games += 1
-
+    byteboards = []
     result = get_result(game)
 
     board = game.board()
 
-    i = 0
     for move in game.mainline_moves():
         board.push(move)
-        bitboard = get_bitboard(board)
-        if i > 50:
-            bitboards.append(bitboard)
-            labels.append(result)
-        i += 1
+        byteboard = get_byteboard(board, result)
+        byteboards.append(byteboard)
 
-    bitboards.append(placeholder_board)
-    labels.append(placeholder_label)
+    byteboards.append(placeholder_board)
 
+    result = np.stack(byteboards)
+    return result
+
+
+def game_gen(games):
     game = chess.pgn.read_game(games)
+    while game is not None:
+        yield game
+        game = chess.pgn.read_game(games)
+    return
 
-bitboards = np.array(bitboards)
-labels = np.array(labels)
 
-print('bitboards shape:', bitboards.shape)
-print('labels shape:', labels.shape)
-print('Finished processing, saving...')
+def count_print(i, _time, val):
+    if i % 1000 == 0:
+        _time = time() - _time
+        print('%d games loaded in %d seconds so far, averaging %.4f seconds per game...' % (i, _time, _time / i), end='\r')
+    return val
 
-np.save('./data/bitboards.npy', bitboards)
-np.save('./data/labels.npy', labels)
 
-print('Done!')
+if __name__ == '__main__':
+    import sys
+    sys.setrecursionlimit(25000)
+
+    parser = argparse.ArgumentParser(description='Training a model')
+    parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
+                        help='name of the dataset to parse (default: ccrl)')
+    args = parser.parse_args()
+
+    games = open('data/{}.pgn'.format(args.dataset))
+    _time = time()
+
+    print('Processing games, this may take a while...')
+    byteboards = [count_print(i+1, _time, process_game.remote(game)) for i, game in enumerate(game_gen(games))]
+    count_print(len(byteboards), _time, None)
+    print('')
+    byteboards = np.concatenate([ray.get(game) for game in byteboards], axis=0)
+
+    print('byteboards shape:', byteboards.shape)
+    print('byteboards size in bytes:', byteboards.nbytes)
+    print('Finished processing, saving...')
+
+    np.save('./data/{}_byteboards.npy'.format(args.dataset), byteboards)
+
+    print('Done!')

@@ -25,7 +25,7 @@ if __name__ == '__main__':
     print('processing data...')
 
     # TODO: explain this mess
-    test_percent = 0.1
+    test_percent = 0.01
     num_test     = int(len(games)*test_percent)
     test_games   = games[:num_test]
     test_wins    = wins[:num_test]
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     train_games_losses = train_games[train_wins == -1]
     test_games_wins = test_games[test_wins == 1]
     test_games_losses = test_games[test_wins == -1]
-    
+
     train_set = SiameseSet(train_games_losses, train_games_wins, 1000000)
     test_set  = SiameseSet(test_games_losses, test_games_wins, 10000)
 

@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 #from autoencoder import redrop
 def redrop(x, dropout):
-    return dropout(x)#+1)-1
+    return dropout(x+1)-1
 
 
 class Siamese(nn.Module):
@@ -36,13 +36,13 @@ class SplitSiamese(nn.Module):
         super(SplitSiamese, self).__init__()
         self.dropout = nn.Dropout(dropout)
 
-        self.fc1 = nn.Linear(773, 400)
-        self.bn1 = nn.BatchNorm1d(400)
-        self.fc2 = nn.Linear(400, 200)
-        self.bn2 = nn.BatchNorm1d(200)
-        self.fc3 = nn.Linear(200, 100)
-        self.bn3 = nn.BatchNorm1d(100)
-        self.fc4 = nn.Linear(100, 1)
+        self.fc1 = nn.Linear(773, 200)
+        self.bn1 = nn.BatchNorm1d(200)
+        self.fc2 = nn.Linear(200, 100)
+        self.bn2 = nn.BatchNorm1d(100)
+        self.fc3 = nn.Linear(100, 50)
+        self.bn3 = nn.BatchNorm1d(50)
+        self.fc4 = nn.Linear(50, 1)
 
     def evaluate_state(self, x):
         x = redrop(F.elu(self.bn1(self.fc1(x))), self.dropout)

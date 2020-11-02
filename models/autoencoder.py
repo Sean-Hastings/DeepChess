@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 def redrop(x, dropout):
-    return dropout(x)#+1)-1
+    return dropout(x+1)-1
 
 class AE(nn.Module):
     def __init__(self, dropout=0.0):

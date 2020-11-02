@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from torch.nn import functional as F
 
 from utils import AESet
@@ -22,20 +23,20 @@ def diff(predictions, labels):
 
 if __name__ == '__main__':
     print('Loading data...')
-    games  = np.load('data/bitboards.npy')
-    labels = np.load('data/labels.npy')
-    print('Pruning data...')
-    games = games[labels != 0]
-    del labels
+    games = np.load('data/ccrl_byteboards.npy')
+    wins  = (games[:, -1] << 6) >> 6
+    games = games[wins != 0]
+    del wins
     print('Processing data...')
 
 
     # TODO: explain this mess
-    test_percent = 0.1
+    test_percent = 0.01
     num_test = int(len(games)*test_percent)
     test_games = games[:num_test]
-    games = games[num_test:]
-    train_set = AESet(train_games)
+    train_games = games[num_test:]
+    p = torch.randperm(train_games.shape[0])
+    train_set = AESet(train_games[p])
     test_set  = AESet(test_games)
 
     model = AE

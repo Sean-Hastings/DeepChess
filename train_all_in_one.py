@@ -18,8 +18,8 @@ def get_acc(predictions, labels):
 
 if __name__ == '__main__':
     print('Loading data...')
-    games = np.load('data/bitboards.npy')
-    wins  = np.load('data/labels.npy')
+    games = np.load('data/ccrl_byteboards.npy')
+    wins  = (games[:, -1] << 6) >> 6
     games = games[wins != 0]
     wins  = wins[wins != 0]
     print('processing data...')
@@ -32,10 +32,13 @@ if __name__ == '__main__':
     train_games  = games[num_test:]
     train_wins   = wins[num_test:]
 
-    train_games_wins   = train_games[train_wins == 1]
-    train_games_losses = train_games[train_wins == -1]
-    test_games_wins    = test_games[test_wins == 1]
-    test_games_losses  = test_games[test_wins == -1]
+    train_games_wins   = train_games[train_wins == 2]
+    train_games_losses = train_games[train_wins == 1]
+    test_games_wins    = test_games[test_wins == 2]
+    test_games_losses  = test_games[test_wins == 1]
+
+    print('Training set consists of {} win-states and {} lose-states'.format(train_games_wins.shape[0], train_games_losses.shape[0]))
+    print('Testing set consists of {} win-states and {} lose-states'.format(test_games_wins.shape[0], test_games_losses.shape[0]))
 
     train_set = SiameseSet(train_games_losses, train_games_wins, 1000000)
     test_set  = SiameseSet(test_games_losses, test_games_wins, 50000)

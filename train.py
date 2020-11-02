@@ -86,7 +86,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
     parser.add_argument('--batch-size', type=int, default=2048, metavar='N',
                         help='input batch size for training (default: 2048)')
     parser.add_argument('--dropout', type=float, default=0.0, metavar='N',
-                        help='dropout for each AE layer during training (default: 0.0)')
+                        help='dropout for each layer during training (default: 0.0)')
     parser.add_argument('--lr', type=float, default=5e-3, metavar='N',
                         help='learning rate (default: 5e-3)')
     parser.add_argument('--decay', type=float, default=.99, metavar='N',
@@ -113,7 +113,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
 
     writer = SummaryWriter(comment='_' + args.id)
 
-    kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {}
+    kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {'pin_memory': True}
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, **kwargs)
 
