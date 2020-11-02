@@ -52,10 +52,11 @@ class SiameseSet(Dataset):
     '''
     The labels will indicate which sample is from set B
     '''
-    def __init__(self, set_a, set_b, epoch_length):
+    def __init__(self, set_a, set_b, epoch_length, byteboards=True):
         self.set_a  = set_a
         self.set_b  = set_b
         self.length = epoch_length
+        self.byteboards = byteboards
 
     def __getitem__(self, index):
         i_a = np.random.randint(0, self.set_a.shape[0])
@@ -64,7 +65,8 @@ class SiameseSet(Dataset):
         sample_a   = self.set_a[i_a]
         sample_b   = self.set_b[i_b]
         samples    = (sample_a, sample_b)
-        samples, _ = bitboard_from_byteboard(np.stack(samples, axis=0))
+        if self.byteboards:
+            samples, _ = bitboard_from_byteboard(np.stack(samples, axis=0))
 
         order   = np.random.randint(0,2)
         i_o     = (order, 1-order)
