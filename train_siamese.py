@@ -23,29 +23,8 @@ if __name__ == '__main__':
                         help='name of the dataset to parse (default: ccrl)')
     args, _ = parser.parse_known_args()
 
-    print('Loading data...')
-    games = np.load('data/{}_byteboards.npy'.format(args.dataset))
-    wins  = (games[:, -1] << 6) >> 6
-    games = np.load('./data/{}_features.npy'.format(args.dataset))
-    games = games[wins != 0]
-    wins  = wins[wins != 0]
-    print('processing data...')
-
-    # TODO: explain this mess
-    test_percent = 0.01
-    num_test     = int(len(games)*test_percent)
-    test_games   = games[:num_test]
-    test_wins    = wins[:num_test]
-    train_games  = games[num_test:]
-    train_wins   = wins[num_test:]
-
-    train_games_wins = train_games[train_wins == 2]
-    train_games_losses = train_games[train_wins == 1]
-    test_games_wins = test_games[test_wins == 2]
-    test_games_losses = test_games[test_wins == 1]
-
-    train_set = SiameseSet(train_games_losses, train_games_wins, 1000000, False)
-    test_set  = SiameseSet(test_games_losses, test_games_wins, 50000, False)
+    train_set = SiameseSet(args.dataset, 'train', 1000000, False)
+    test_set  = SiameseSet(args.dataset, 'test', 50000, False)
 
     model = Siamese
 

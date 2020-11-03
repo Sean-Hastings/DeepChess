@@ -113,7 +113,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
 
     writer = SummaryWriter(comment='_' + args.id)
 
-    kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {'pin_memory': True}
+    kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {'pin_memory': True}
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, **kwargs)
 
