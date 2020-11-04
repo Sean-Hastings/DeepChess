@@ -1,9 +1,9 @@
 import numpy as np
 import chess.pgn
 import argparse
+import h5py
 from time import time
 import ray
-ray.init()
 
 
 def get_byteboard(board, result):
@@ -43,9 +43,6 @@ def get_result(game):
 
 @ray.remote
 def process_game(game):
-    placeholder_board = np.zeros(33).astype(np.uint8)
-    placeholder_label = 0
-
     byteboards = []
     result = get_result(game)
 
@@ -53,13 +50,12 @@ def process_game(game):
 
     for move in game.mainline_moves():
         board.push(move)
-        byteboard = get_byteboard(board, result)
-        byteboards.append(byteboard)
+        byteboards.append(get_byteboard(board, result))
 
-    byteboards.append(placeholder_board)
-
-    result = np.stack(byteboards)
-    return result
+    byteboards = np.stack(byteboards)
+    output = [np.zeros((0, 33), dtype=np.uint8)]*3
+    output[2-result] = byteboards
+    return output
 
 
 def game_gen(games):
@@ -77,28 +73,48 @@ def count_print(i, _time, val):
     return val
 
 
+def split_data(data, test_percent):
+    half_test = int((len(data)*test_percent)//2)
+    test_data = data[:half_test]
+    data      = data[half_test:]
+    p         = np.random.permutation(len(data))
+    test_data = np.concatenate([test_data, data[p[:half_test]]], axis=0)
+    data      = data[p[half_test:]]
+    return (data, test_data)
+
+
 if __name__ == '__main__':
+    ray.init()
     import sys
     sys.setrecursionlimit(25000)
 
     parser = argparse.ArgumentParser(description='Training a model')
     parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
                         help='name of the dataset to parse (default: ccrl)')
+    parser.add_argument('--test_percent', type=float, default=0.05, metavar='N',
+                        help='Percentage of the data to devote to testing (default: 0.05)')
     args = parser.parse_args()
 
-    games = open('data/{}.pgn'.format(args.dataset))
+    games = open('data/{}/games.pgn'.format(args.dataset))
     _time = time()
 
     print('Processing games, this may take a while...')
     byteboards = [count_print(i+1, _time, process_game.remote(game)) for i, game in enumerate(game_gen(games))]
     count_print(len(byteboards), _time, None)
     print('')
-    byteboards = np.concatenate([ray.get(game) for game in byteboards], axis=0)
 
-    print('byteboards shape:', byteboards.shape)
-    print('byteboards size in bytes:', byteboards.nbytes)
+    byteboards = [split_data(np.concatenate(result, axis=0), args.test_percent) for result in list(zip(*[ray.get(game) for game in byteboards]))]
+
     print('Finished processing, saving...')
+    with h5py.File('data/{}/byteboards.hdf5'.format(args.dataset), "w") as f:
+        train = f.create_group('train')
+        train.create_dataset('wins', data=byteboards[0][0])
+        train.create_dataset('losses', data=byteboards[1][0])
+        train.create_dataset('ties', data=byteboards[2][0])
 
-    np.save('./data/{}_byteboards.npy'.format(args.dataset), byteboards)
+        test = f.create_group('test')
+        test.create_dataset('wins', data=byteboards[0][1])
+        test.create_dataset('losses', data=byteboards[1][1])
+        test.create_dataset('ties', data=byteboards[2][1])
 
     print('Done!')

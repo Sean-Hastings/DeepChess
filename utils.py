@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import h5py
+from time import time
 from torch.utils.data import Dataset
 
 
@@ -36,35 +38,56 @@ def bitboard_from_byteboard(byteboard):
 
 
 class AESet(Dataset):
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, dataset, mode):
+        self.dataset_path = dataset
+        self.mode = mode
+        with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
+            f = f[self.mode]
+            self.length = {'wins':f['wins'].len(), 'losses':f['losses'].len(), 'ties':f['ties'].len(), 'all':0}
+            self.length['all'] = self.length['wins'] + self.length['losses'] + self.length['ties']
 
     def __getitem__(self, index):
-        data, _ = bitboard_from_byteboard(self.data[index].reshape([-1, self.data.shape[1]]))
-        data = torch.from_numpy(np.squeeze(data)).float()
-        return (data, data)
+        with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
+            f = f[self.mode]
+            if index < self.length['wins']:
+                index = ('wins', index)
+            elif index < (self.length['wins'] + self.length['losses']):
+                index = ('losses', index - self.length['wins'])
+            else:
+                index = ('ties', index - (self.length['wins'] + self.length['losses']))
+            data = f[index[0]][index[1]]
+            data, _ = bitboard_from_byteboard(data.reshape([-1, data.shape[1]]))
+            data = torch.from_numpy(np.squeeze(data)).float()
+            return (data, data)
 
     def __len__(self):
-        return self.data.shape[0]
+        return self.length['all']
 
 
 class SiameseSet(Dataset):
     '''
     The labels will indicate which sample is from set B
     '''
-    def __init__(self, set_a, set_b, epoch_length, byteboards=True):
-        self.set_a  = set_a
-        self.set_b  = set_b
-        self.length = epoch_length
-        self.byteboards = byteboards
+    def __init__(self, dataset, mode, epoch_length, byteboards=True):
+        self.dataset_path = dataset
+        self.mode = mode
+        self.byteboards   = byteboards
+        with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
+            f = f[self.mode]
+            self.length = {'wins':f['wins'].len(), 'losses':f['losses'].len(), 'ties':f['ties'].len(), 'all':0}
+            self.length['all'] = epoch_length
 
     def __getitem__(self, index):
-        i_a = np.random.randint(0, self.set_a.shape[0])
-        i_b = np.random.randint(0, self.set_b.shape[0])
+        i_win  = np.random.randint(0, self.length['wins'])
+        i_loss = np.random.randint(0, self.length['losses'])
 
-        sample_a   = self.set_a[i_a]
-        sample_b   = self.set_b[i_b]
-        samples    = (sample_a, sample_b)
+        inputs = 'byteboards' if self.byteboards else 'features'
+        with h5py.File('data/{}/{}.hdf5'.format(self.dataset_path, inputs)) as f:
+            f = f[self.mode]
+            sample_win  = f['wins'][i_win]
+            sample_loss = f['losses'][i_loss]
+            samples     = (sample_loss, sample_win)
+
         if self.byteboards:
             samples, _ = bitboard_from_byteboard(np.stack(samples, axis=0))
 
@@ -78,5 +101,4 @@ class SiameseSet(Dataset):
         return (stacked, label)
 
     def __len__(self):
-        #return self.set_a.shape[0] * self.set_b.shape[0]
-        return self.length
+        return self.length['all']
