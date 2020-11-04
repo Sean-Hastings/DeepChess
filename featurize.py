@@ -3,6 +3,7 @@ from utils import bitboard_from_byteboard
 import numpy as np
 import torch
 import argparse
+import h5py
 
 
 def featurize(game, index, max_indices, model):
@@ -29,8 +30,8 @@ if __name__ == '__main__':
     model.load_state_dict(state['state_dict'])
     model.eval()
 
-    with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset)) as f_in:
-        with h5py.File('data/{}/features.hdf5'.format(self.dataset), 'w') as f_out:
+    with h5py.File('data/{}/byteboards.hdf5'.format(args.dataset)) as f_in:
+        with h5py.File('data/{}/features.hdf5'.format(args.dataset), 'w') as f_out:
             for group in ['train', 'test']:
                 out_group = f_out.create_group(group)
                 for dset in ['wins','losses','ties']:
