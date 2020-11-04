@@ -33,12 +33,12 @@ if __name__ == '__main__':
         with h5py.File('data/{}/features.hdf5'.format(self.dataset), 'w') as f_out:
             for group in ['train', 'test']:
                 out_group = f_out.create_group(group)
-                for dset in ['wins','losses','ties']for dset in ['{}/{}'.format(a,b) for a in ['train','test'] for b in ['wins','losses','ties']]:
+                for dset in ['wins','losses','ties']:
                     games = f_in['{}/{}'.format(group,dset)]
-                    outset = out_group.create_dataset(dset, (len(games), 100), dtype='uint8')
+                    outset = out_group.create_dataset(dset, (len(games), 100))
 
                     num_batches = games.shape[0] // args.batch_size
                     inds        = [slice(args.batch_size*i, args.batch_size*(i+1)) for i in range(num_batches)] + [slice(args.batch_size*num_batches, len(games))]
 
-                    for i, batch in enumerate(batched_games):
-                        outset[batch] = featurize(games[batch], i+1, len(batched_games), model)
+                    for i, batch in enumerate(inds):
+                        outset[batch] = featurize(games[batch], i+1, len(inds), model)

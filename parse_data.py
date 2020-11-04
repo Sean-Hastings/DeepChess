@@ -4,6 +4,7 @@ import argparse
 import h5py
 from time import time
 import ray
+import os
 
 
 def get_byteboard(board, result):
@@ -103,18 +104,41 @@ if __name__ == '__main__':
     count_print(len(byteboards), _time, None)
     print('')
 
-    byteboards = [split_data(np.concatenate(result, axis=0), args.test_percent) for result in list(zip(*[ray.get(game) for game in byteboards]))]
-
-    print('Finished processing, saving...')
-    with h5py.File('data/{}/byteboards.hdf5'.format(args.dataset), "w") as f:
+    with h5py.File('data/{}/temp.hdf5'.format(args.dataset), "w") as f:
         train = f.create_group('train')
-        train.create_dataset('wins', data=byteboards[0][0])
-        train.create_dataset('losses', data=byteboards[1][0])
-        train.create_dataset('ties', data=byteboards[2][0])
+        tr_wins   = train.create_dataset('wins', (0, 33), chunks=(1000, 33), dtype='uint8')
+        tr_losses = train.create_dataset('losses', (0, 33), chunks=(1000, 33), dtype='uint8')
+        tr_ties   = train.create_dataset('ties', (0, 33), chunks=(1000, 33), dtype='uint8')
 
         test = f.create_group('test')
-        test.create_dataset('wins', data=byteboards[0][1])
-        test.create_dataset('losses', data=byteboards[1][1])
-        test.create_dataset('ties', data=byteboards[2][1])
+        te_wins   = test.create_dataset('wins', (0, 33), chunks=(1000, 33), dtype='uint8')
+        te_losses = test.create_dataset('losses', (0, 33), chunks=(1000, 33), dtype='uint8')
+        te_ties   = test.create_dataset('ties', (0, 33), chunks=(1000, 33), dtype='uint8')
 
+        all_ds = [tr_wins, tr_losses, tr_ties, te_wins, te_losses, te_ties]
+
+        for game in byteboards:
+            results = [a for result in ray.get(game) for a in split_data(result)]
+            for i in range(6):
+                ds = all_ds[i]
+                res = results[i]
+                ds[len(ds):len(ds)+len(res)] = res
+
+    print('Finished processing, saving...')
+    batch_size = 1000
+    with h5py.File('data/{}/temp.hdf5'.format(args.dataset), rdcc_nbytes=1024**2*4000, rdcc_nslots=10**7) as f_in:
+        with h5py.File('data/{}/byteboards.hdf5'.format(args.dataset), "w") as f_out:
+            for group in ['train', 'test']:
+                out_group = f.create_group(group)
+                for dset in ['wins','losses','ties']:
+                    games = f_in['{}/{}'.format(group,dset)]
+                    outset = out_group.create_dataset(dset, (len(games), 33), dtype='uint8')
+
+                    num_batches = games.shape[0] // batch_size
+                    inds        = [slice(batch_size*i, batch_size*(i+1)) for i in range(num_batches)] + [slice(batch_size*num_batches, len(games))]
+
+                    for i, batch in enumerate(inds):
+                        outset[batch] = games[batch]
+
+    os.remove('data/{}/temp.hdf5'.format(args.dataset))
     print('Done!')
