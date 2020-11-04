@@ -30,8 +30,4 @@ if __name__ == '__main__':
 
     test_functions = {'accuracy': get_acc}
 
-    try:
-        train(train_set, test_set, model, loss_function, test_functions)
-    finally:
-        train_set.close()
-        test_set.close()
+    train(train_set, test_set, model, loss_function, test_functions)

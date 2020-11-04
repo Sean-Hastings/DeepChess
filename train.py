@@ -95,6 +95,8 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
+    parser.add_argument('--num_workers', type=int, default=8, metavar='S',
+                        help='number of dataloader workers (default: 8)')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--id', type=str, default='', metavar='N',
@@ -113,7 +115,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
 
     writer = SummaryWriter(comment='_' + args.id)
 
-    kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {'pin_memory': True}
+    kwargs = {'num_workers': args.num_workers, 'pin_memory': True} if args.cuda else {'pin_memory': True}
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, **kwargs)
 

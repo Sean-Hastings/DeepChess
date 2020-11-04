@@ -35,13 +35,10 @@ if __name__ == '__main__':
                 out_group = f_out.create_group(group)
                 for dset in ['wins','losses','ties']for dset in ['{}/{}'.format(a,b) for a in ['train','test'] for b in ['wins','losses','ties']]:
                     games = f_in['{}/{}'.format(group,dset)]
+                    outset = out_group.create_dataset(dset, (len(games), 100), dtype='uint8')
 
                     num_batches = games.shape[0] // args.batch_size
-                    extras      = games[args.batch_size*num_batches:]
+                    inds        = [slice(args.batch_size*i, args.batch_size*(i+1)) for i in range(num_batches)] + [slice(args.batch_size*num_batches, len(games))]
 
-                    batched_games = np.split(games[:args.batch_size*num_batches], num_batches) + [extras]
-
-                    feat_games = [featurize(batch, i+1, len(batched_games), model) for i, batch in enumerate(batched_games)]
-                    featurized = np.vstack(feat_games)
-
-                    out_group.create_dataset(dset, data=featurized)
+                    for i, batch in enumerate(batched_games):
+                        outset[batch] = featurize(games[batch], i+1, len(batched_games), model)
