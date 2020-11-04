@@ -16,6 +16,7 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = AE().to(device)
+    model.eval()
     state = torch.load('checkpoints/autoencoder/{}/best.pth.tar'.format(args.model_id), map_location=lambda storage, loc: storage)
     model.load_state_dict(state['state_dict'])
     games = np.load('data/{}_byteboards.npy'.format(args.dataset))
@@ -24,15 +25,19 @@ if __name__ == '__main__':
     num_batches = games.shape[0] // batch_size
     extras      = games[batch_size*num_batches:]
 
-    batched_games = np.split(games[:batch_size*num_batches], num_batches) + [extras]
+    games = np.split(games[:batch_size*num_batches], num_batches) + [extras]
 
     def featurize(game, index, max_indices):
-        game, _ = bitboard_from_byteboard(game)
-        _, enc = model(torch.from_numpy(game).type(torch.FloatTensor).to(device))
-        print('{} / {}'.format(index, max_indices), end='\r')
-        return enc.cpu().detach().numpy()
+        with torch.no_grad():
+            game, _ = bitboard_from_byteboard(game)
+            _, enc = model(torch.from_numpy(game).type(torch.FloatTensor).to(device))
+            print('{} / {}'.format(index, max_indices), end='\r')
+            return enc.cpu().detach().numpy()
 
-    feat_games = [featurize(batch, i+1, len(batched_games)) for i, batch in enumerate(batched_games)]
-    featurized = np.vstack(feat_games)
+    for i in range(len(games)):
+        games[i] = featurize(games[i], i+1, num_batches)
 
-    np.save('./data/{}_features.npy'.format(args.dataset), featurized)
+    #games = [featurize(batch, i+1, len(games)) for i, batch in enumerate(games)]
+    games = np.concatenate(games, axis=0)
+
+    np.save('./data/{}_features.npy'.format(args.dataset), games)
