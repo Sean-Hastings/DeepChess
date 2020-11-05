@@ -8,9 +8,10 @@ import h5py
 
 def featurize(game, index, max_indices, model):
     game, _ = bitboard_from_byteboard(game)
-    _, enc = model(torch.from_numpy(game).type(torch.FloatTensor).to(device))
-    print('{} / {}'.format(index, max_indices), end='\r')
-    return enc.cpu().detach().numpy()
+    with torch.no_grad():
+        _, enc = model(torch.from_numpy(game).type(torch.FloatTensor).to(device))
+        print('{} / {}'.format(index, max_indices), end='\r')
+        return enc.cpu().numpy()
 
 
 if __name__ == '__main__':
@@ -35,6 +36,7 @@ if __name__ == '__main__':
             for group in ['train', 'test']:
                 out_group = f_out.create_group(group)
                 for dset in ['wins','losses','ties']:
+                    print('Beginning work on {}/{}'.format(group,dset))
                     games = f_in['{}/{}'.format(group,dset)]
                     outset = out_group.create_dataset(dset, (len(games), 100))
 
@@ -43,3 +45,5 @@ if __name__ == '__main__':
 
                     for i, batch in enumerate(inds):
                         outset[batch] = featurize(games[batch], i+1, len(inds), model)
+
+                    print('')
