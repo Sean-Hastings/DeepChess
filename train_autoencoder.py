@@ -29,8 +29,8 @@ if __name__ == '__main__':
                         help='name of the dataset to parse (default: ccrl)')
     args, _ = parser.parse_known_args()
 
-    train_set = AESet(args.dataset, 'train')
-    test_set  = AESet(args.dataset, 'test')
+    train_set = AESet(args.dataset, 'train', ('wins', 'losses', 'ties'))
+    test_set  = AESet(args.dataset, 'test', ('wins', 'losses', 'ties'))
 
     model = AE
 

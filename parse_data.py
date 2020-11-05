@@ -3,8 +3,8 @@ import chess.pgn
 import argparse
 import h5py
 from time import time
-import ray
 import ray_utils.queue_ray as q
+import ray
 import os
 
 
@@ -87,36 +87,30 @@ def split_data(data, test_percent):
 
 if __name__ == '__main__':
     ray.init()
-
     parser = argparse.ArgumentParser(description='Training a model')
     parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
                         help='name of the dataset to parse (default: ccrl)')
     parser.add_argument('--test_percent', type=float, default=0.05, metavar='N',
                         help='Percentage of the data to devote to testing (default: 0.05)')
-    parser.add_argument('--max_queue_size', type=int, default=0, metavar='N',
-                        help='Max length of the parsing queue (default: 1000)')
     args = parser.parse_args()
 
     print('Processing games, this may take a while...')
-    queue = q.Queue(maxsize=args.max_queue_size)
+    queue = q.Queue()
     q.put_queue.remote(game_gen, 'data/{}/games.pgn'.format(args.dataset), queue, process_game)
-
-    #byteboards = [count_print(i+1, _time, process_game.remote(game)) for i, game in enumerate(game_gen(games))]
-    #count_print(len(byteboards), _time, None)
-    #print('')
 
     _time = time()
 
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), "w") as f:
+        kwargs = {'maxshape': (None, 33), 'chunks': (100, 33), 'dtype': 'uint8'}
         train = f.create_group('train')
-        tr_wins   = train.create_dataset('wins', (1000, 33), chunks=(1000, 33), dtype='uint8')
-        tr_losses = train.create_dataset('losses', (1000, 33), chunks=(1000, 33), dtype='uint8')
-        tr_ties   = train.create_dataset('ties', (1000, 33), chunks=(1000, 33), dtype='uint8')
+        tr_wins   = train.create_dataset('wins', (100, 33), **kwargs)
+        tr_losses = train.create_dataset('losses', (100, 33), **kwargs)
+        tr_ties   = train.create_dataset('ties', (100, 33), **kwargs)
 
         test = f.create_group('test')
-        te_wins   = test.create_dataset('wins', (1000, 33), chunks=(1000, 33), dtype='uint8')
-        te_losses = test.create_dataset('losses', (1000, 33), chunks=(1000, 33), dtype='uint8')
-        te_ties   = test.create_dataset('ties', (1000, 33), chunks=(1000, 33), dtype='uint8')
+        te_wins   = test.create_dataset('wins', (100, 33), **kwargs)
+        te_losses = test.create_dataset('losses', (100, 33), **kwargs)
+        te_ties   = test.create_dataset('ties', (100, 33), **kwargs)
 
         all_ds = [tr_wins, tr_losses, tr_ties, te_wins, te_losses, te_ties]
 
@@ -128,12 +122,13 @@ if __name__ == '__main__':
                 res = results[i]
                 ds[len(ds):len(ds)+len(res)] = res
 
+    print('')
     print('Finished processing, saving...')
     batch_size = 1000
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), rdcc_nbytes=1024**2*4000, rdcc_nslots=10**7) as f_in:
         with h5py.File('data/{}/byteboards.hdf5'.format(args.dataset), "w") as f_out:
             for group in ['train', 'test']:
-                out_group = f.create_group(group)
+                out_group = f_out.create_group(group)
                 for dset in ['wins','losses','ties']:
                     games = f_in['{}/{}'.format(group,dset)]
                     outset = out_group.create_dataset(dset, (len(games), 33), dtype='uint8')

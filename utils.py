@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import h5py
+from itertools import accumulate
 from time import time
 from torch.utils.data import Dataset
 
@@ -38,25 +39,32 @@ def bitboard_from_byteboard(byteboard):
 
 
 class AESet(Dataset):
-    def __init__(self, dataset, mode):
-        self.dataset_path = dataset
-        self.mode = mode
+    def __init__(self, path, modes, dsets):
+        self.dataset_path = path
+        self.modes = modes if isinstance(modes, (list, tuple)) else [modes]
+        self.dsets = dsets if isinstance(dsets, (list, tuple)) else [dsets]
+        self.length = dict()
         with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
-            f = f[self.mode]
-            self.length = {'wins':f['wins'].len(), 'losses':f['losses'].len(), 'ties':f['ties'].len(), 'all':0}
-            self.length['all'] = self.length['wins'] + self.length['losses'] + self.length['ties']
+            for mode in self.modes:
+                for dset in self.dsets:
+                    address = '{}/{}'.format(mode, dset)
+                    self.length[address] = len(f[address])
+
+
+        self.length['all'] = sum([self.length[key] for key in self.length.keys()])
 
     def __getitem__(self, index):
         with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
-            f = f[self.mode]
-            if index < self.length['wins']:
-                index = ('wins', index)
-            elif index < (self.length['wins'] + self.length['losses']):
-                index = ('losses', index - self.length['wins'])
-            else:
-                index = ('ties', index - (self.length['wins'] + self.length['losses']))
-            data = f[index[0]][index[1]]
-            data, _ = bitboard_from_byteboard(data.reshape([-1, data.shape[1]]))
+            keys = list(self.length.keys())
+            ranges = list(accumulate([0] + [self.length[key] for key in keys]))
+            for i in range(len(keys)):
+                if index < ranges[i+1]:
+                    key = keys[i]
+                    k_index = index - ranges[i]
+                    break
+
+            data = f[key][k_index]
+            data, _ = bitboard_from_byteboard(data.reshape([-1, data.shape[-1]]))
             data = torch.from_numpy(np.squeeze(data)).float()
             return (data, data)
 
