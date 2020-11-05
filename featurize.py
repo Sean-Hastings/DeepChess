@@ -3,16 +3,22 @@ from utils import bitboard_from_byteboard
 import numpy as np
 import torch
 import argparse
+import ray
 
-
+@ray.remote
 def featurize(game, index, max_indices, model):
     game, _ = bitboard_from_byteboard(game)
     _, enc = model(torch.from_numpy(game).type(torch.FloatTensor).to(device))
     print('{} / {}'.format(index, max_indices), end='\r')
-    return enc.cpu().detach().numpy()
+    return index, enc.cpu().detach().numpy()
+
+
+def gen(iter):
+    yield from iter
 
 
 if __name__ == '__main__':
+    ray.init()
     parser = argparse.ArgumentParser(description='Training a model')
     parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
                         help='name of the dataset to parse (default: ccrl)')
@@ -39,6 +45,6 @@ if __name__ == '__main__':
 
                     num_batches = games.shape[0] // args.batch_size
                     inds        = [slice(args.batch_size*i, args.batch_size*(i+1)) for i in range(num_batches)] + [slice(args.batch_size*num_batches, len(games))]
-
-                    for i, batch in enumerate(inds):
+                    remote_feat = [featurize.remote(games[batch], i+1, len(inds), model) for i, batch in enumerate(inds)]
+                    for batch, features in [ray.get(feat) for feat in remote_feat]:
                         outset[batch] = featurize(games[batch], i+1, len(inds), model)

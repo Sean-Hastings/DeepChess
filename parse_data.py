@@ -4,6 +4,7 @@ import argparse
 import h5py
 from time import time
 import ray
+import ray_utils.queue_ray as q
 import os
 
 
@@ -42,14 +43,13 @@ def get_result(game):
         return 0
 
 
-@ray.remote
-def process_game(game):
+def process_game(board, result, moves):
+    if len(moves) == 0:
+        return [np.zeros((0, 33), dtype=np.uint8)]*3
+
     byteboards = []
-    result = get_result(game)
 
-    board = game.board()
-
-    for move in game.mainline_moves():
+    for move in moves:
         board.push(move)
         byteboards.append(get_byteboard(board, result))
 
@@ -59,10 +59,11 @@ def process_game(game):
     return output
 
 
-def game_gen(games):
+def game_gen(path):
+    games = open(path)
     game = chess.pgn.read_game(games)
     while game is not None:
-        yield game
+        yield game.board(), get_result(game), list(game.mainline_moves())
         game = chess.pgn.read_game(games)
     return
 
@@ -86,39 +87,42 @@ def split_data(data, test_percent):
 
 if __name__ == '__main__':
     ray.init()
-    import sys
-    sys.setrecursionlimit(25000)
 
     parser = argparse.ArgumentParser(description='Training a model')
     parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
                         help='name of the dataset to parse (default: ccrl)')
     parser.add_argument('--test_percent', type=float, default=0.05, metavar='N',
                         help='Percentage of the data to devote to testing (default: 0.05)')
+    parser.add_argument('--max_queue_size', type=int, default=0, metavar='N',
+                        help='Max length of the parsing queue (default: 1000)')
     args = parser.parse_args()
 
-    games = open('data/{}/games.pgn'.format(args.dataset))
-    _time = time()
-
     print('Processing games, this may take a while...')
-    byteboards = [count_print(i+1, _time, process_game.remote(game)) for i, game in enumerate(game_gen(games))]
-    count_print(len(byteboards), _time, None)
-    print('')
+    queue = q.Queue(maxsize=args.max_queue_size)
+    q.put_queue.remote(game_gen, 'data/{}/games.pgn'.format(args.dataset), queue, process_game)
+
+    #byteboards = [count_print(i+1, _time, process_game.remote(game)) for i, game in enumerate(game_gen(games))]
+    #count_print(len(byteboards), _time, None)
+    #print('')
+
+    _time = time()
 
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), "w") as f:
         train = f.create_group('train')
-        tr_wins   = train.create_dataset('wins', (0, 33), chunks=(1000, 33), dtype='uint8')
-        tr_losses = train.create_dataset('losses', (0, 33), chunks=(1000, 33), dtype='uint8')
-        tr_ties   = train.create_dataset('ties', (0, 33), chunks=(1000, 33), dtype='uint8')
+        tr_wins   = train.create_dataset('wins', (1000, 33), chunks=(1000, 33), dtype='uint8')
+        tr_losses = train.create_dataset('losses', (1000, 33), chunks=(1000, 33), dtype='uint8')
+        tr_ties   = train.create_dataset('ties', (1000, 33), chunks=(1000, 33), dtype='uint8')
 
         test = f.create_group('test')
-        te_wins   = test.create_dataset('wins', (0, 33), chunks=(1000, 33), dtype='uint8')
-        te_losses = test.create_dataset('losses', (0, 33), chunks=(1000, 33), dtype='uint8')
-        te_ties   = test.create_dataset('ties', (0, 33), chunks=(1000, 33), dtype='uint8')
+        te_wins   = test.create_dataset('wins', (1000, 33), chunks=(1000, 33), dtype='uint8')
+        te_losses = test.create_dataset('losses', (1000, 33), chunks=(1000, 33), dtype='uint8')
+        te_ties   = test.create_dataset('ties', (1000, 33), chunks=(1000, 33), dtype='uint8')
 
         all_ds = [tr_wins, tr_losses, tr_ties, te_wins, te_losses, te_ties]
 
-        for game in byteboards:
-            results = [a for result in ray.get(game) for a in split_data(result)]
+        for i, game in enumerate(q.get_queue(queue, 10)):
+            count_print(i+1, _time, None)
+            results = [a for result in game for a in split_data(result, args.test_percent)]
             for i in range(6):
                 ds = all_ds[i]
                 res = results[i]
