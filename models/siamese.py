@@ -24,7 +24,7 @@ class Siamese(nn.Module):
             ae_model.load_state_dict(state['state_dict'])
             self.encoder = ae_model.encoder
 
-        self.shapes = [self.encoder.shapes[-1]*2] + shapes
+        self.shapes = [self.encoder.shapes[-1]*2] + self.shapes
 
         self.net = Network(self.shapes, dropout=self.dropout)
 
