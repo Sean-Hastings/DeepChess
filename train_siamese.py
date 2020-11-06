@@ -27,7 +27,9 @@ if __name__ == '__main__':
     test_set  = SiameseSet(args.dataset, 'test', 50000, False)
 
     model = Siamese
+    model_shape  = (400, 200, 100)
+    model_kwargs = {'hidden_size': model_shape}
 
     test_functions = {'accuracy': get_acc}
 
-    train(train_set, test_set, model, loss_function, test_functions)
+    train(train_set, test_set, model, loss_function, test_functions, model_kwargs)

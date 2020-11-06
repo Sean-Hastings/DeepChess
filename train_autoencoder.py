@@ -33,8 +33,10 @@ if __name__ == '__main__':
     test_set  = AESet(args.dataset, 'test', ('wins', 'losses', 'ties'))
 
     model = AE
+    model_shape  = (600, 400, 200, 100)
+    model_kwargs = {'hidden_size': model_shape}
 
     test_functions = {'diff': diff,
                       'mse': mse_loss_function}
 
-    train(train_set, test_set, model, loss_function, test_functions)
+    train(train_set, test_set, model, loss_function, test_functions, model_kwargs)

@@ -2,59 +2,59 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-#from autoencoder import redrop
-def redrop(x, dropout):
-    return dropout(x+1)-1
+from .utils import Network
+from .autoencoder import AE
 
 
 class Siamese(nn.Module):
-    def __init__(self, dropout=0.0):
+    def __init__(self, hidden_size=(400, 200, 100), dropout=0.0, AE_init=None):
         super(Siamese, self).__init__()
-        self.dropout = nn.Dropout(dropout)
+        self.dropout     = dropout
+        self.hidden_size = list(hidden_size)
+        self.shapes      = self.hidden_size + [2]
 
-        self.fc1 = nn.Linear(200, 400)
-        self.bn1 = nn.BatchNorm1d(400)
-        self.fc2 = nn.Linear(400, 200)
-        self.bn2 = nn.BatchNorm1d(200)
-        self.fc3 = nn.Linear(200, 100)
-        self.bn3 = nn.BatchNorm1d(100)
-        self.fc4 = nn.Linear(100, 2)
+        if self.AE_init is None:
+            self.encoder = AE().encoder
+        else:
+            ae_model  = AE()
+            load_dir  = 'checkpoints/autoencoder/{}'.format(AE_init)
+            load_path = load_dir + '/best.pth.tar'
+            state     = torch.load(load_path, map_location=lambda storage, loc: storage)
+
+            ae_model.load_state_dict(state['state_dict'])
+            self.encoder = ae_model.encoder
+
+        self.shapes = [self.encoder.shapes[-1]*2] + shapes
+
+        self.net = Network(self.shapes, dropout=self.dropout)
 
     def forward(self, x):
-        x = redrop(F.elu(self.bn1(self.fc1(x))), self.dropout)
-        x = redrop(F.elu(self.bn2(self.fc2(x))), self.dropout)
-        x = redrop(F.elu(self.bn3(self.fc3(x))), self.dropout)
-        x = torch.softmax(self.fc4(x), dim=-1)
-        return x
+        state_size = x.shape[1] // 2
+        x = torch.cat([self.encoder(x[:, :state_size]),
+                       self.encoder(x[:, state_size:])], dim=-1)
+        x = self.net(x)
+        return torch.softmax(x, dim=-1)
 
     def name(self):
         return 'siamese'
 
 
 class SplitSiamese(nn.Module):
-    def __init__(self, dropout=0.0):
+    def __init__(self, hidden_size=(200, 100, 50), dropout=0.0):
         super(SplitSiamese, self).__init__()
-        self.dropout = nn.Dropout(dropout)
+        self.dropout     = dropout
+        self.hidden_size = list(hidden_size)
+        self.shapes      = [773] + self.hidden_size + [1]
 
-        self.fc1 = nn.Linear(773, 200)
-        self.bn1 = nn.BatchNorm1d(200)
-        self.fc2 = nn.Linear(200, 100)
-        self.bn2 = nn.BatchNorm1d(100)
-        self.fc3 = nn.Linear(100, 50)
-        self.bn3 = nn.BatchNorm1d(50)
-        self.fc4 = nn.Linear(50, 1)
+        self.net = Network(self.shapes, dropout=self.dropout)
 
     def evaluate_state(self, x):
-        x = redrop(F.elu(self.bn1(self.fc1(x))), self.dropout)
-        x = redrop(F.elu(self.bn2(self.fc2(x))), self.dropout)
-        x = redrop(F.elu(self.bn3(self.fc3(x))), self.dropout)
-        x = self.fc4(x)
-        return x
+        return self.net(x)
 
     def forward(self, x):
         state_size = x.shape[1] // 2
-        x = torch.cat([self.evaluate_state(x[:, :state_size]),
-                       self.evaluate_state(x[:, state_size:])], dim=-1)
+        x = torch.cat([self.net(x[:, :state_size]),
+                       self.net(x[:, state_size:])], dim=-1)
         return torch.softmax(x, dim=-1)
 
     def name(self):

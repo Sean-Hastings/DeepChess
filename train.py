@@ -81,7 +81,7 @@ def save(epoch, model, optimizer, loss, args, best=False):
         torch.save(state, os.path.join(save_dir, 'best.pth.tar'))
 
 
-def train(train_set, test_set, model, loss_function, test_functions={}):
+def train(train_set, test_set, model, loss_function, test_functions={}, model_kwargs={}):
     parser = argparse.ArgumentParser(description='Training a model')
     parser.add_argument('--batch-size', type=int, default=2048, metavar='N',
                         help='input batch size for training (default: 2048)')
@@ -119,7 +119,8 @@ def train(train_set, test_set, model, loss_function, test_functions={}):
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader  = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=True, **kwargs)
 
-    model = model(args.dropout).to(device)
+    model_kwargs['dropout'] = args.dropout
+    model = model(**model_kwargs).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     start_epoch = 1

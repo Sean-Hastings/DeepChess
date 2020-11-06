@@ -27,7 +27,9 @@ if __name__ == '__main__':
     test_set  = SiameseSet(args.dataset, 'test', 50000)
 
     model = SplitSiamese
+    model_shape  = (600, 400, 200, 100, 50)
+    model_kwargs = {'hidden_size': model_shape}
 
     test_functions = {'accuracy': get_acc}
 
-    train(train_set, test_set, model, loss_function, test_functions)
+    train(train_set, test_set, model, loss_function, test_functions, model_kwargs)
