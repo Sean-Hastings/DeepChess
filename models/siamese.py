@@ -13,7 +13,7 @@ class Siamese(nn.Module):
         self.hidden_size = list(hidden_size)
         self.shapes      = self.hidden_size + [2]
 
-        if self.AE_init is None:
+        if AE_init is None:
             self.encoder = AE().encoder
         else:
             ae_model  = AE()
