@@ -7,7 +7,7 @@ from .utils import Network
 class AE(nn.Module):
     def __init__(self, hidden_size=(600, 400, 200, 100), dropout=0.0):
         super(AE, self).__init__()
-        self.dropout     = nn.Dropout(dropout)
+        self.dropout     = dropout
         self.hidden_size = list(hidden_size)
 
         self.encoder = Network([773] + self.hidden_size, dropout=self.dropout)
