@@ -76,10 +76,9 @@ class SiameseSet(Dataset):
     '''
     The labels will indicate which sample is from set B
     '''
-    def __init__(self, dataset, mode, epoch_length, byteboards=True):
+    def __init__(self, dataset, mode, epoch_length):
         self.dataset_path = dataset
         self.mode = mode
-        self.byteboards   = byteboards
         with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
             f = f[self.mode]
             self.length = {'wins':f['wins'].len(), 'losses':f['losses'].len(), 'ties':f['ties'].len(), 'all':0}
@@ -89,8 +88,7 @@ class SiameseSet(Dataset):
         i_win  = np.random.randint(0, self.length['wins'])
         i_loss = np.random.randint(0, self.length['losses'])
 
-        inputs = 'byteboards' if self.byteboards else 'features'
-        with h5py.File('data/{}/{}.hdf5'.format(self.dataset_path, inputs)) as f:
+        with h5py.File('data/{}/byteboards.hdf5'.format(self.dataset_path)) as f:
             f = f[self.mode]
             sample_win  = f['wins'][i_win]
             sample_loss = f['losses'][i_loss]

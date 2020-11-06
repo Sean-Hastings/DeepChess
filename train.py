@@ -122,7 +122,6 @@ def train(train_set, test_set, model, loss_function, test_functions={}, model_kw
     model_kwargs['dropout'] = args.dropout
     model = model(**model_kwargs).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    print(model)
 
     start_epoch = 1
     best_loss = float('inf')
