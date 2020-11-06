@@ -10,8 +10,8 @@ class AE(nn.Module):
         self.dropout     = nn.Dropout(dropout)
         self.hidden_size = list(hidden_size)
 
-        self.encoder = Network([773] + hidden_size, dropout=self.dropout)
-        self.decoder = Network(hidden_size[::-1] + [773])
+        self.encoder = Network([773] + self.hidden_size, dropout=self.dropout)
+        self.decoder = Network(self.hidden_size[::-1] + [773])
 
     def encode(self, x):
         x = torch.tanh(self.encoder(x))
