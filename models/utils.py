@@ -22,7 +22,7 @@ class NetworkBlock(nn.Module):
         super(NetworkBlock, self).__init__()
         self.linear     = nn.Linear(in_size, out_size)
         self.bn         = nn.BatchNorm1d(out_size)
-        self.activation = activation
+        self.activation = activation() if activation is not None else None
 
     def forward(self, x):
         x = self.linear(x)
