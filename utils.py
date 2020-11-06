@@ -93,9 +93,7 @@ class SiameseSet(Dataset):
             sample_win  = f['wins'][i_win]
             sample_loss = f['losses'][i_loss]
             samples     = (sample_loss, sample_win)
-
-        if self.byteboards:
-            samples, _ = bitboard_from_byteboard(np.stack(samples, axis=0))
+            samples, _  = bitboard_from_byteboard(np.stack(samples, axis=0))
 
         order   = np.random.randint(0,2)
         i_o     = (order, 1-order)
