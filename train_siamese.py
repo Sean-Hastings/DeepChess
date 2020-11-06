@@ -26,8 +26,8 @@ if __name__ == '__main__':
     args, _ = parser.parse_known_args()
     args.ae_source = None if len(args.ae_source) == 0 else args.ae_source
 
-    train_set = SiameseSet(args.dataset, 'train', 1000000, False)
-    test_set  = SiameseSet(args.dataset, 'test', 50000, False)
+    train_set = SiameseSet(args.dataset, 'train', 1000000)
+    test_set  = SiameseSet(args.dataset, 'test', 50000)
 
     model = Siamese
     model_shape  = (400, 200, 100)
