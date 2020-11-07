@@ -83,7 +83,7 @@ def save(epoch, model, optimizer, loss, args, best=False):
 
 def train(train_set, test_set, model, loss_function, test_functions={}, model_kwargs={}):
     parser = argparse.ArgumentParser(description='Training a model')
-    parser.add_argument('--batch-size', type=int, default=2048, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=2048, metavar='N',
                         help='input batch size for training (default: 2048)')
     parser.add_argument('--dropout', type=float, default=0.0, metavar='N',
                         help='dropout for each layer during training (default: 0.0)')
@@ -93,7 +93,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}, model_kw
                         help='decay rate of learning rate (default: 0.99)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no_cuda', action='store_true', default=False,
                         help='enables CUDA training')
     parser.add_argument('--num_workers', type=int, default=8, metavar='S',
                         help='number of dataloader workers (default: 8)')
@@ -101,7 +101,7 @@ def train(train_set, test_set, model, loss_function, test_functions={}, model_kw
                         help='random seed (default: 1)')
     parser.add_argument('--id', type=str, default='', metavar='N',
                         help='unique identifier for saving weights')
-    parser.add_argument('--log-interval', type=int, default=20, metavar='N',
+    parser.add_argument('--log_interval', type=int, default=20, metavar='N',
                         help='how many seconds to wait before logging training status (default: 20)')
     args, _ = parser.parse_known_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
