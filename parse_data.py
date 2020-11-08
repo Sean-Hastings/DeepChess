@@ -1,11 +1,11 @@
 import numpy as np
-import chess.pgn
+import chess
 import argparse
 import h5py
 from time import time
-import ray_utils.queue_ray as q
-import ray
 import os
+import re
+from multiprocessing.pool import Pool
 
 
 def get_byteboard(board, result):
@@ -32,24 +32,30 @@ def get_byteboard(board, result):
     return byteboard
 
 
-def get_result(game):
-    result = game.headers['Result']
-    result = result.split('-')[0]
-    if result == '1':
+def get_result(line):
+    result = line[line.rfind('-')+1:-1]
+    if result == '0':
         return 2
-    elif result == '0':
+    elif result == '1':
         return 1
     else:
         return 0
 
 
-def process_game(board, result, moves, cut_moves, cut_captures):
+def process_game(args):
+    line, cut_moves, cut_captures = args
+
     byteboards = []
+    result = get_result(line)
+    board  = chess.Board()
+
+    moves = re.split(' |[^\s]*\.|{.*}|0-1|1-0|1\/2-1\/2', line)
+    moves = [l for l in moves if len(l) > 0]
 
     for i, move in enumerate(moves):
-        if i >= cut_moves and not (cut_captures and 'x' in board.san(move)):
+        if i >= cut_moves and not (cut_captures and 'x' in move):
             byteboards.append(get_byteboard(board, result))
-        board.push(move)
+        board.push_xboard(move)
 
     if len(byteboards) == 0:
         return [np.zeros((0, 33), dtype=np.uint8)]*3
@@ -60,13 +66,16 @@ def process_game(board, result, moves, cut_moves, cut_captures):
     return output
 
 
+
 def game_gen(args):
-    games = open(args[0])
-    game = chess.pgn.read_game(games)
-    while game is not None:
-        yield game.board(), get_result(game), list(game.mainline_moves()), args[1], args[2]
-        game = chess.pgn.read_game(games)
-    return
+    lines = open(args[0])
+    cur_line = ''
+    for line in lines:
+        if line[0] not in '[\n':
+            cur_line += line[:-1] + ' '
+        elif len(cur_line) > 0:
+            yield cur_line, args[1], args[2]
+            cur_line = ''
 
 
 def count_print(i, _time, val):
@@ -87,7 +96,6 @@ def split_data(data, test_percent):
 
 
 if __name__ == '__main__':
-    ray.init()
     parser = argparse.ArgumentParser(description='Training a model')
     parser.add_argument('--dataset', type=str, default='ccrl', metavar='N',
                         help='name of the dataset to parse (default: ccrl)')
@@ -99,50 +107,46 @@ if __name__ == '__main__':
                         help='Number of moves to cut off the beginning of each trajectory (default: 5)')
     parser.add_argument('--keep_captures', action='store_true', default=False,
                         help='Flag to not cut out capturing moves')
+    parser.add_argument('--num_workers', type=int, default=8, metavar='N',
+                        help='Number of game-parsing processes (default: 8)')
     args = parser.parse_args()
     args.cut_captures = not args.keep_captures
     if len(args.id):
         args.id = '_' + args.id
 
     print('Processing games, this may take a while...')
-    queue = q.Queue()
-    q.put_queue.remote(game_gen, ('data/{}/games.pgn'.format(args.dataset), args.cut_moves, args.cut_captures), queue, process_game)
 
     _time = time()
 
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), "w") as f:
         kwargs = {'maxshape': (None, 33), 'chunks': (1000, 33), 'dtype': 'uint8'}
-        train = f.create_group('train')
-        tr_wins   = train.create_dataset('wins', (0, 33), **kwargs)
-        tr_losses = train.create_dataset('losses', (0, 33), **kwargs)
-        tr_ties   = train.create_dataset('ties', (0, 33), **kwargs)
+        wins   = f.create_dataset('wins', (0, 33), **kwargs)
+        losses = f.create_dataset('losses', (0, 33), **kwargs)
+        ties   = f.create_dataset('ties', (0, 33), **kwargs)
 
-        test = f.create_group('test')
-        te_wins   = test.create_dataset('wins', (0, 33), **kwargs)
-        te_losses = test.create_dataset('losses', (0, 33), **kwargs)
-        te_ties   = test.create_dataset('ties', (0, 33), **kwargs)
+        all_ds = [wins, losses, ties]
 
-        all_ds = [tr_wins, tr_losses, tr_ties, te_wins, te_losses, te_ties]
-
-        for i, game in enumerate(q.get_queue(queue, 10)):
-            count_print(i+1, _time, None)
-            results = [a for result in game for a in split_data(result, args.test_percent)]
-            for i in range(6):
-                ds = all_ds[i]
-                res = results[i]
-                lends = len(ds)
-                ds.resize(lends+len(res), axis=0)
-                ds[lends:lends+len(res)] = res
+        with Pool(args.num_workers) as pool:
+            gen = game_gen(('data/{}/games.pgn'.format(args.dataset), args.cut_moves, args.cut_captures))
+            for i, game in enumerate(pool.imap_unordered(process_game, gen, chunksize=1000)):
+                count_print(i+1, _time, None)
+                for i in range(3):
+                    ds = all_ds[i]
+                    res = game[i]
+                    lends = len(ds)
+                    ds.resize(lends+len(res), axis=0)
+                    ds[lends:lends+len(res)] = res
 
     print('')
     print('Finished processing, saving...')
+    raise Exception()
     batch_size = 1000
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), rdcc_nbytes=1024**2*4000, rdcc_nslots=10**7) as f_in:
         with h5py.File('data/{}/byteboards{}.hdf5'.format(args.dataset, args.id), "w") as f_out:
             for group in ['train', 'test']:
                 out_group = f_out.create_group(group)
                 for dset in ['wins','losses','ties']:
-                    games = f_in['{}/{}'.format(group,dset)]
+                    games = f_in[dset]
                     outset = out_group.create_dataset(dset, (len(games), 33), dtype='uint8')
 
                     num_batches = games.shape[0] // batch_size
