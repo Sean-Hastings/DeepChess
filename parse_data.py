@@ -120,18 +120,25 @@ if __name__ == '__main__':
 
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), "w") as f:
         kwargs = {'maxshape': (None, 33), 'chunks': (1000, 33), 'dtype': 'uint8'}
-        wins   = f.create_dataset('wins', (0, 33), **kwargs)
-        losses = f.create_dataset('losses', (0, 33), **kwargs)
-        ties   = f.create_dataset('ties', (0, 33), **kwargs)
+        train = f.create_group('train')
+        tr_wins   = train.create_dataset('wins', (0, 33), **kwargs)
+        tr_losses = train.create_dataset('losses', (0, 33), **kwargs)
+        tr_ties   = train.create_dataset('ties', (0, 33), **kwargs)
 
-        all_ds = [wins, losses, ties]
+        test = f.create_group('test')
+        te_wins   = test.create_dataset('wins', (0, 33), **kwargs)
+        te_losses = test.create_dataset('losses', (0, 33), **kwargs)
+        te_ties   = test.create_dataset('ties', (0, 33), **kwargs)
+
+        all_ds = [[tr_wins, tr_losses, tr_ties], [te_wins, te_losses, te_ties]]
 
         with Pool(args.num_workers) as pool:
             gen = game_gen(('data/{}/games.pgn'.format(args.dataset), args.cut_moves, args.cut_captures))
             for i, game in enumerate(pool.imap_unordered(process_game, gen, chunksize=1000)):
                 count_print(i+1, _time, None)
+                t = np.random.rand() < args.test_percent
                 for i in range(3):
-                    ds = all_ds[i]
+                    ds = all_ds[t][i]
                     res = game[i]
                     lends = len(ds)
                     ds.resize(lends+len(res), axis=0)
@@ -139,14 +146,13 @@ if __name__ == '__main__':
 
     print('')
     print('Finished processing, saving...')
-    raise Exception()
     batch_size = 1000
     with h5py.File('data/{}/temp.hdf5'.format(args.dataset), rdcc_nbytes=1024**2*4000, rdcc_nslots=10**7) as f_in:
         with h5py.File('data/{}/byteboards{}.hdf5'.format(args.dataset, args.id), "w") as f_out:
             for group in ['train', 'test']:
                 out_group = f_out.create_group(group)
                 for dset in ['wins','losses','ties']:
-                    games = f_in[dset]
+                    games = f_in['{}/{}'.format(group,dset)]
                     outset = out_group.create_dataset(dset, (len(games), 33), dtype='uint8')
 
                     num_batches = games.shape[0] // batch_size
